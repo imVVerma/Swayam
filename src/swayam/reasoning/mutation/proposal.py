@@ -19,6 +19,7 @@ from uuid import UUID
 
 class ChangeKind(StrEnum):
     CREATE_TASK = "create_task"
+    CREATE_EVENT = "create_event"
     SCHEDULE_TASK = "schedule_task"
     COMPLETE_TASK = "complete_task"
     REOPEN_TASK = "reopen_task"
@@ -30,6 +31,7 @@ class ChangeKind(StrEnum):
 
 REQUIRED_FIELDS: dict[ChangeKind, tuple[str, ...]] = {
     ChangeKind.CREATE_TASK: ("title",),
+    ChangeKind.CREATE_EVENT: ("title", "starts_at", "ends_at"),
     ChangeKind.SCHEDULE_TASK: ("due_date",),
     ChangeKind.BLOCK_TASK: ("blocked_by",),
     ChangeKind.RENAME_TASK: ("new_title",),
@@ -43,6 +45,7 @@ Authoritative. Both planners read it, and so does the question-asking path, so a
 
 ACTION_KIND: dict[str, ChangeKind] = {
     "create": ChangeKind.CREATE_TASK,
+    "create_event": ChangeKind.CREATE_EVENT,
     "reschedule": ChangeKind.SCHEDULE_TASK,
     "block": ChangeKind.BLOCK_TASK,
     "rename": ChangeKind.RENAME_TASK,
@@ -63,6 +66,8 @@ MISSING_FIELD_QUESTION: dict[str, str] = {
     "blocked_by": "What is it blocked on?",
     "new_title": "What should I call it instead?",
     "body": "What should the note say?",
+    "starts_at": "When does the event start?",
+    "ends_at": "When does the event end?",
 }
 
 
@@ -77,10 +82,13 @@ def missing_field_question(action: str, instruction: dict[str, Any]) -> str | No
     kind = ACTION_KIND.get(action)
     if kind is None:
         return None
+    # Actions that don't require a target_ref (they create new things)
+    no_target_actions = {"create", "create_event"}
     for field_name in REQUIRED_FIELDS.get(kind, ()):
         if instruction.get(field_name):
             continue
-        if field_name != "title" and not instruction.get("target_ref"):
+        needs_target = field_name != "title" and not instruction.get("target_ref")
+        if needs_target and action not in no_target_actions:
             # The reference is absent or unresolved; that is the "which task?" case.
             return None
         return MISSING_FIELD_QUESTION.get(field_name, f"What should {field_name} be?")

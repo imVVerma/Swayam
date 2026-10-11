@@ -1,0 +1,27 @@
+id: complete_existing_task
+category: mutation_positive
+today: "2026-10-10"
+turn: "mark the q3 report done"
+seed_tasks:
+  - {title: "q3 report", status: "open"}
+expect:
+  outcome: applied
+  commits: 1
+  clarifies_about: none
+  required_field: null
+  must_not_do: []
+route_fixture:
+  intent: "mutation"
+  confidence: 0.9
+  instructions:
+    - action: "complete"
+      quote: "mark the q3 report done"
+      target_ref: "the q3 report"
+plan_fixture:
+  changes:
+    - kind: "complete_task"
+      instruction_index: 0
+      target_ref: "the q3 report"
+      fields: {}
+      confidence: 0.9
+      rationale: "llm plan"

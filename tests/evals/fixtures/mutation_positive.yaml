@@ -1,0 +1,28 @@
+id: mutation_positive_simple
+category: mutation_positive
+today: "2026-09-29"
+turn: "add a task to send the Q3 report"
+seed_tasks: []
+expect:
+  outcome: captured
+  commits: 1
+  clarifies_about: none
+  required_field: null
+  must_not_do: []
+  known_gap: ""
+route_fixture:
+  intent: "mutation"
+  confidence: 1.0
+  instructions:
+    - action: "create"
+      quote: "add a task to send the Q3 report"
+      title: "send the Q3 report"
+plan_fixture:
+  changes:
+    - kind: "create_task"
+      instruction_index: 0
+      target_ref: null
+      fields:
+        title: "send the Q3 report"
+      confidence: 1.0
+      rationale: ""

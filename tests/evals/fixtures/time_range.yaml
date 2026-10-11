@@ -1,0 +1,29 @@
+id: time_range
+category: mutation_positive
+today: "2026-10-10"
+turn: "exam 10:30 to 11:30"
+seed_tasks: []
+expect:
+  outcome: captured
+  commits: 2
+  clarifies_about: none
+  required_field: null
+  must_not_do: []
+route_fixture:
+  intent: "mutation"
+  confidence: 0.8
+  instructions:
+    - action: "create"
+      quote: "exam 10:30 to 11:30"
+      title: "exam 10:30 to 11:30"
+      due_date: "2026-10-10"
+plan_fixture:
+  changes:
+    - kind: "create_task"
+      instruction_index: 0
+      target_ref: null
+      fields:
+        title: "exam 10:30 to 11:30"
+        due_date: "2026-10-10"
+      confidence: 0.9
+      rationale: "llm plan"

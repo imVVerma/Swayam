@@ -1,0 +1,22 @@
+id: missing_due_date
+category: missing_required_field
+today: "2026-10-10"
+turn: "schedule the meeting"
+seed_tasks: []
+expect:
+  outcome: clarified
+  commits: 0
+  clarifies_about: required_field
+  required_field: starts_at
+  must_not_do: ["invent_due_date"]
+route_fixture:
+  intent: "mutation"
+  confidence: 0.8
+  instructions:
+    - action: "create_event"
+      quote: "schedule the meeting"
+      title: "schedule the meeting"
+      event_kind: "meeting"
+      is_event: true
+plan_fixture:
+  changes: []

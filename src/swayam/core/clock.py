@@ -5,7 +5,7 @@ learned of it* (docs/phase1_arch.md section 5.1). Every component that needs the
 current time takes a ``Clock`` so tests can pin time instead of racing it.
 """
 
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta, timezone
 from typing import Protocol, runtime_checkable
 
 
@@ -23,6 +23,16 @@ class SystemClock:
         return datetime.now(UTC)
 
 
+IST = timezone(timedelta(hours=5, minutes=30), "IST")
+
+
+class ISTClock:
+    """Production clock in Indian Standard Time (UTC+5:30)."""
+
+    def now(self) -> datetime:
+        return datetime.now(IST)
+
+
 class FrozenClock:
     """Test clock. Advances only when explicitly told to."""
 
@@ -35,6 +45,4 @@ class FrozenClock:
         return self._now
 
     def advance(self, *, seconds: float = 0, days: float = 0) -> None:
-        from datetime import timedelta
-
         self._now += timedelta(seconds=seconds, days=days)

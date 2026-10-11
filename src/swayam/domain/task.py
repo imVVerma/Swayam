@@ -11,7 +11,7 @@ inline below at the point it is enforced.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import date, datetime
+from datetime import date, datetime, time
 from enum import StrEnum
 from typing import Any
 from uuid import UUID
@@ -69,7 +69,7 @@ class ChangeStatus:
 
 @dataclass(frozen=True, slots=True)
 class ScheduleTask:
-    """Set or move the due date.
+    """Set or move the due date (and optional time).
 
     One command, two events. Which one is emitted depends on current state, not on
     caller intent -- this is invariant I2: a task has at most one due date, so a second
@@ -77,6 +77,7 @@ class ScheduleTask:
     """
 
     due_date: date
+    due_time: time | None = None
     allow_backdate: bool = False
     reason: str | None = None
 
@@ -150,6 +151,7 @@ class Task:
     priority: int = 0
     estimate_minutes: int | None = None
     due_date: date | None = None
+    due_time: time | None = None
     blocked_by: str | None = None
     notes: tuple[str, ...] = ()
     linked_event_ids: tuple[UUID, ...] = ()
@@ -274,20 +276,23 @@ class Task:
                 "set allow_backdate=True to schedule it anyway"
             )
         if self.due_date is None:  # I2
+            payload = cat.TaskDueDateSet(
+                due_date=cmd.due_date, due_time=cmd.due_time
+            ).model_dump(mode="json")
             return (
-                _event(
-                    cat.TASK_DUE_DATE_SET.name,
-                    cat.TaskDueDateSet(due_date=cmd.due_date).model_dump(mode="json"),
-                    ctx,
-                ),
+                _event(cat.TASK_DUE_DATE_SET.name, payload, ctx),
             )
-        if self.due_date == cmd.due_date:
+        if self.due_date == cmd.due_date and self.due_time == cmd.due_time:
             return ()
         return (
             _event(
                 cat.TASK_DUE_DATE_MOVED.name,
                 cat.TaskDueDateMoved(
-                    from_date=self.due_date, to_date=cmd.due_date, reason=cmd.reason
+                    from_date=self.due_date,
+                    to_date=cmd.due_date,
+                    from_time=self.due_time,
+                    to_time=cmd.due_time,
+                    reason=cmd.reason,
                 ).model_dump(mode="json", exclude_none=True),
                 ctx,
             ),
@@ -372,8 +377,14 @@ class Task:
             self.blocked_by = payload.get("blocked_by")
         elif name == cat.TASK_DUE_DATE_SET.name:
             self.due_date = date.fromisoformat(payload["due_date"])
+            if payload.get("due_time"):
+                self.due_time = time.fromisoformat(payload["due_time"])
         elif name == cat.TASK_DUE_DATE_MOVED.name:
             self.due_date = date.fromisoformat(payload["to_date"])
+            if payload.get("to_time"):
+                self.due_time = time.fromisoformat(payload["to_time"])
+            elif "to_time" in payload and payload["to_time"] is None:
+                self.due_time = None
         elif name == cat.TASK_PRIORITY_CHANGED.name:
             self.priority = payload["to_priority"]
         elif name == cat.TASK_ESTIMATED.name:

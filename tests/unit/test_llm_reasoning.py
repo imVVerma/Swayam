@@ -314,6 +314,11 @@ class TestLLMPlanner:
 
         payloads = {
             ChangeKind.CREATE_TASK: {"title": "x"},
+            ChangeKind.CREATE_EVENT: {
+                "title": "x",
+                "starts_at": "2026-10-10T10:00:00",
+                "ends_at": "2026-10-10T11:00:00",
+            },
             ChangeKind.SCHEDULE_TASK: {"due_date": "2026-10-02"},
             ChangeKind.COMPLETE_TASK: {},
             ChangeKind.REOPEN_TASK: {},

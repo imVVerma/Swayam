@@ -1,0 +1,22 @@
+id: bad_date_someday
+category: malformed_date
+today: "2026-09-29"
+turn: "schedule the budget report"
+seed_tasks:
+  - {title: "budget report"}
+expect:
+  outcome: clarified
+  commits: 0
+  clarifies_about: required_field
+  required_field: due_date
+  must_not_do: ["invent_due_date"]
+  known_gap: ""
+route_fixture:
+  intent: "mutation"
+  confidence: 0.8
+  instructions:
+    - action: "reschedule"
+      quote: "schedule the budget report"
+      target_ref: "budget report"
+plan_fixture:
+  changes: []

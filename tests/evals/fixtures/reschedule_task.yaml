@@ -1,0 +1,29 @@
+id: reschedule_task
+category: mutation_positive
+today: "2026-10-10"
+turn: "move the board deck to friday"
+seed_tasks:
+  - {title: "board deck", due: "2026-10-10"}
+expect:
+  outcome: applied
+  commits: 1
+  clarifies_about: none
+  required_field: null
+  must_not_do: []
+route_fixture:
+  intent: "mutation"
+  confidence: 0.9
+  instructions:
+    - action: "reschedule"
+      quote: "move the board deck to friday"
+      target_ref: "the board deck"
+      due_date: "2026-10-16"
+plan_fixture:
+  changes:
+    - kind: "schedule_task"
+      instruction_index: 0
+      target_ref: "the board deck"
+      fields:
+        due_date: "2026-10-16"
+      confidence: 0.9
+      rationale: "llm plan"

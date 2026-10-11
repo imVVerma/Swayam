@@ -10,7 +10,6 @@ from __future__ import annotations
 from dataclasses import dataclass
 from uuid import UUID
 
-from swayam.core.errors import InvariantViolation
 from swayam.events import catalogue as cat
 from swayam.events.envelope import RecordedEvent
 
@@ -39,6 +38,5 @@ class Project:
             self.is_default = payload.get("is_default", False)
         elif name == cat.PROJECT_CLOSED.name:
             self.closed = True
-        else:
-            raise InvariantViolation(f"project cannot apply event: {name}")
+        # Ignore unknown events (e.g., task events written to the project stream)
         self.version = recorded.seq

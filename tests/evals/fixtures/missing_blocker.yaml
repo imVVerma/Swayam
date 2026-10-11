@@ -1,0 +1,21 @@
+id: missing_blocker
+category: missing_required_field
+today: "2026-10-10"
+turn: "block the report"
+seed_tasks:
+  - {title: "report", status: "open"}
+expect:
+  outcome: clarified
+  commits: 0
+  clarifies_about: required_field
+  required_field: blocked_by
+  must_not_do: ["invent_blocker"]
+route_fixture:
+  intent: "mutation"
+  confidence: 0.8
+  instructions:
+    - action: "block"
+      quote: "block the report"
+      target_ref: "the report"
+plan_fixture:
+  changes: []

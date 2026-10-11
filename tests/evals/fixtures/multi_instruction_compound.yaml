@@ -1,0 +1,37 @@
+id: multi_instruction_compound
+category: mutation_positive
+today: "2026-10-10"
+turn: "exam tomorrow 10:30 to 11:30 in room 1001; quiz at 5 tomorrow"
+seed_tasks: []
+expect:
+  outcome: applied
+  commits: 1
+  clarifies_about: none
+  required_field: null
+  must_not_do: []
+  known_gap: "Only first instruction captured; compound sentence with semicolon not split"
+route_fixture:
+  intent: "mutation"
+  confidence: 0.8
+  instructions:
+    - action: "create_event"
+      quote: "exam tomorrow 10:30 to 11:30 in room 1001"
+      title: "exam tomorrow 10:30 to 11:30 in room 1001"
+      event_kind: "exam"
+      starts_at: "2026-10-11T10:30:00"
+      ends_at: "2026-10-11T11:30:00"
+      location: "room 1001"
+      is_event: true
+plan_fixture:
+  changes:
+    - kind: "create_event"
+      instruction_index: 0
+      target_ref: null
+      fields:
+        title: "exam tomorrow 10:30 to 11:30 in room 1001"
+        starts_at: "2026-10-11T10:30:00"
+        ends_at: "2026-10-11T11:30:00"
+        kind: "exam"
+        location: "room 1001"
+      confidence: 0.9
+      rationale: "llm plan"

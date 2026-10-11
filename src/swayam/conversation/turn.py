@@ -41,7 +41,7 @@ from swayam.domain.task import (
     Task,
     TaskStatus,
 )
-from swayam.events.envelope import Actor, RecordedEvent
+from swayam.events.envelope import Actor, Event, RecordedEvent
 from swayam.observability.trace import Trace
 from swayam.reasoning.compose.reply import Citation, Reply
 from swayam.reasoning.mutation.proposal import ChangeKind, ProposedChange, missing_field_question
@@ -50,7 +50,7 @@ from swayam.reasoning.mutation.rule_planner import MutationPlanner
 from swayam.reasoning.router.deterministic import IntentRouter
 from swayam.reasoning.router.intent import Intent, IntentDecision
 from swayam.storage.eventstore.port import EventStore
-from swayam.storage.projections.task_current import TaskCurrentProjection
+from swayam.storage.projections.query import QueryProjection
 from swayam.storage.repositories import (
     DEFAULT_PROJECT_ID,
     ProjectRepository,
@@ -104,10 +104,11 @@ def _why_no_proposal(decision: IntentDecision, known_tasks: Sequence[Task]) -> s
                 f"Closest: {candidates}."
             )
     for instruction in instructions:
-        if not instruction.get("target_ref") and instruction.get("action") != "create":
+        action = str(instruction.get("action") or "")
+        if not instruction.get("target_ref") and action not in ("create", "create_event"):
             # No reference, so "which task?" is at least the right question.
             continue
-        question = missing_field_question(str(instruction.get("action") or ""), instruction)
+        question = missing_field_question(action, instruction)
         if question is not None:
             return question
     if decision.slots.get("title"):
@@ -123,7 +124,7 @@ class TurnOrchestrator:
         clock: Clock,
         router: IntentRouter,
         planner: MutationPlanner,
-        projection: TaskCurrentProjection,
+        projection: QueryProjection,
         user_id: str = "owner",
     ) -> None:
         self._store = store
@@ -134,6 +135,8 @@ class TurnOrchestrator:
         self._user_id = user_id
         self._tasks = TaskRepository(store, clock)
         self._projects = ProjectRepository(store, clock)
+        self._last_turn_correlation_id: CorrelationId | None = None
+        self._last_turn_event_types: tuple[str, ...] = ()
 
     async def handle(self, utterance: str) -> TurnResult:
         trace = Trace()
@@ -174,7 +177,11 @@ class TurnOrchestrator:
             )
 
         if decision.intent in (Intent.MUTATION, Intent.CAPTURE):
-            return await self._handle_mutation(utterance, decision, trace, correlation_id, actor)
+            result = await self._handle_mutation(utterance, decision, trace, correlation_id, actor)
+            if result.committed:
+                self._last_turn_correlation_id = correlation_id
+                self._last_turn_event_types = tuple(e.event.type for e in result.committed)
+            return result
 
         # STATE / TEMPORAL / LOAD / CROSS_DOMAIN all depend on projections arriving with
         # M3. Refusing is correct here; guessing is not.
@@ -216,6 +223,29 @@ class TurnOrchestrator:
                 decision=decision,
                 trace=trace,
             )
+
+        # Check for duplicate task creation proposals.
+        for proposal in proposals:
+            if proposal.kind is ChangeKind.CREATE_TASK:
+                title = str(proposal.fields.get("title", "")).strip().lower()
+                if title:
+                    existing = [
+                        t
+                        for t in known_tasks
+                        if t.title and t.title.strip().lower() == title and t.exists
+                    ]
+                    if existing:
+                        trace.record("duplicate_detected", {"title": title})
+                        return TurnResult(
+                            trace.turn_id,
+                            decision.intent,
+                            Reply(
+                                text=f'A task titled "{existing[0].title}" already exists.',
+                                clarification="Would you like to update it instead?",
+                            ),
+                            decision=decision,
+                            trace=trace,
+                        )
 
         applied: list[_Applied] = []
         failures: list[str] = []
@@ -373,6 +403,56 @@ class TurnOrchestrator:
             return _Applied(events, f'Added "{task.title}"{due}.',
                             Citation("task", task.title or ""))
 
+        if proposal.kind is ChangeKind.CREATE_EVENT:
+            await self._projects.ensure_default(actor=actor, correlation_id=correlation_id)
+            title = str(fields["title"])
+            starts_at = fields["starts_at"]
+            ends_at = fields["ends_at"]
+            kind = str(fields.get("kind", "event"))
+            location = str(fields.get("location", "")) if fields.get("location") else None
+            notes = str(fields.get("notes", "")) if fields.get("notes") else None
+            all_day = bool(fields.get("all_day", False))
+
+            # Create the event stream
+            from uuid import uuid4
+
+            from swayam.events.catalogue import CALENDAR_EVENT_CREATED
+            from swayam.events.envelope import Event as EnvelopeEvent
+            event_id = uuid4()
+            
+            event = EnvelopeEvent(
+                type=CALENDAR_EVENT_CREATED.name,
+                payload={
+                    "title": title,
+                    "starts_at": starts_at,
+                    "ends_at": ends_at,
+                    "kind": kind,
+                    "location": location,
+                    "notes": notes,
+                    "all_day": all_day,
+                },
+                occurred_at=self._clock.now(),
+                actor=actor,
+                causation_id=causation,
+                correlation_id=correlation_id,
+            )
+
+            result = await self._store.append(
+                stream_id=event_id,
+                stream_type="event",
+                expected_version=0,
+                events=(event,),
+                correlation_id=correlation_id,
+            )
+
+            events = result.events
+            loc_str = f" at {location}" if location else ""
+            return _Applied(
+                events,
+                f'Scheduled "{title}" ({kind}) from {starts_at} to {ends_at}{loc_str}.',
+                Citation("event", title),
+            )
+
         task_id = proposal.target_id
         if task_id is None:
             # Refusing here rather than picking the closest match. The candidates are
@@ -515,3 +595,70 @@ class TurnOrchestrator:
         turn caused -- not the whole stream, and not a subset that silently drifts.
         """
         return await self._store.read_stream(stream_id, from_seq=from_seq)
+
+    async def undo(self) -> TurnResult:
+        """Undo the last mutation turn by writing a compensating event."""
+        trace = Trace()
+        correlation_id: CorrelationId = CorrelationId(trace.correlation_id)
+        actor = Actor.user(self._user_id)
+
+        if self._last_turn_correlation_id is None:
+            return TurnResult(
+                trace.turn_id,
+                Intent.UNCLEAR,
+                Reply(
+                    text="Nothing to undo.",
+                    clarification="No previous mutation turn recorded in this session.",
+                ),
+                trace=trace,
+            )
+
+        undone_correlation_id = self._last_turn_correlation_id
+        undone_event_types = self._last_turn_event_types
+
+        await self._projects.ensure_default(actor=actor, correlation_id=correlation_id)
+
+        event = Event(
+            type="task.undone",
+            payload={
+                "undone_correlation_id": str(undone_correlation_id),
+                "undone_event_types": list(undone_event_types),
+                "reason": "user requested undo",
+            },
+            occurred_at=self._clock.now(),
+            actor=actor,
+            causation_id=trace.correlation_id,
+            correlation_id=correlation_id,
+        )
+
+        result = await self._store.append(
+            stream_id=DEFAULT_PROJECT_ID,
+            stream_type="task",
+            expected_version=await self._store.stream_version(DEFAULT_PROJECT_ID),
+            events=(event,),
+            correlation_id=correlation_id,
+        )
+
+        # Apply the undo event, then rebuild the projection from the full log
+        # to exclude all events from the undone correlation_id.
+        for recorded in result.events:
+            self._projection.apply(recorded)
+
+        # Rebuild projection from the full event log, which now includes the
+        # undo event. This ensures all events from the undone correlation_id
+        # are skipped.
+        page = await self._store.read_all()
+        self._projection.rebuild(page.events)
+
+        self._last_turn_correlation_id = None
+        self._last_turn_event_types = ()
+
+        return TurnResult(
+            trace.turn_id,
+            Intent.MUTATION,
+            Reply(
+                text=f"Undid the last action ({', '.join(undone_event_types)}).",
+            ),
+            committed=list(result.events),
+            trace=trace,
+        )

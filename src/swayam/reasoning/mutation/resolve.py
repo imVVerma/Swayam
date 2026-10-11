@@ -12,6 +12,7 @@ that failure is invisible until someone notices the wrong deadline moved.
 
 from __future__ import annotations
 
+import difflib
 from collections.abc import Sequence
 
 from swayam.domain.task import Task
@@ -22,6 +23,9 @@ STOPWORDS = {
     "a", "an", "the", "to", "for", "on", "at", "in", "by", "my", "i", "me",
     "task", "todo", "it", "that", "this", "and", "please", "need", "should",
 }
+
+# Threshold for fuzzy matching (0.0 to 1.0). Higher = stricter.
+FUZZY_THRESHOLD = 0.85
 
 
 def clean_title(text: str) -> str:
@@ -36,6 +40,11 @@ def live_tasks(known_tasks: Sequence[Task]) -> list[Task]:
     than mutate something the user believes is out of the way.
     """
     return [t for t in known_tasks if t.exists and not t.archived]
+
+
+def _fuzzy_score(a: str, b: str) -> float:
+    """Return similarity ratio between two strings (0.0 to 1.0)."""
+    return difflib.SequenceMatcher(None, a, b).ratio()
 
 
 def match_candidates(reference: str, known_tasks: Sequence[Task]) -> list[Task]:
@@ -65,13 +74,46 @@ def match_candidates(reference: str, known_tasks: Sequence[Task]) -> list[Task]:
         title = clean_title(t.title or "")
         if title and (needle in title or title in needle):
             partial.append(t)
-    return partial
+    if partial:
+        return partial
+
+    # Fuzzy match: only when exact and partial fail, and only if unique and close.
+    fuzzy = []
+    for t in live:
+        title = clean_title(t.title or "")
+        if title:
+            score = _fuzzy_score(needle, title)
+            if score >= FUZZY_THRESHOLD:
+                fuzzy.append((t, score))
+    
+    if fuzzy:
+        # Sort by score descending
+        fuzzy.sort(key=lambda x: x[1], reverse=True)
+        # Only return if the best match is clearly the best
+        if len(fuzzy) == 1 or fuzzy[0][1] - fuzzy[1][1] > 0.1:
+            return [t for t, _ in fuzzy]
+    
+    return []
 
 
 def resolve_task(reference: str, known_tasks: Sequence[Task]) -> Task | None:
     """Match a free-text reference to exactly one task, or return ``None``."""
     matches = match_candidates(reference, known_tasks)
     return matches[0] if len(matches) == 1 else None
+
+
+def fuzzy_match_verb(verb: str, valid_verbs: list[str], threshold: float = 0.8) -> str | None:
+    """Fuzzy match a verb against known verbs. Returns the best match if unique and close."""
+    best_match = None
+    best_score = 0.0
+    for v in valid_verbs:
+        score = difflib.SequenceMatcher(None, verb.lower(), v.lower()).ratio()
+        if score > best_score:
+            best_score = score
+            best_match = v
+    if best_score >= threshold:
+        return best_match
+    return None
 
 
 def describe_candidates(reference: str, known_tasks: Sequence[Task]) -> str:

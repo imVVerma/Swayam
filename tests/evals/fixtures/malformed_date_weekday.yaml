@@ -1,0 +1,21 @@
+id: malformed_date_weekday
+category: malformed_date
+today: "2026-10-10"
+turn: "schedule for monday"
+seed_tasks: []
+expect:
+  outcome: clarified
+  commits: 0
+  clarifies_about: unexecutable
+  required_field: null
+  must_not_do: ["invent_due_date"]
+route_fixture:
+  intent: "mutation"
+  confidence: 0.8
+  instructions:
+    - action: null
+      quote: "schedule for monday"
+      title: "schedule"
+      due_date: "2026-10-12"
+plan_fixture:
+  changes: []

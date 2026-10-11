@@ -43,9 +43,11 @@ ROUTER_PURPOSE = "router.classify"
 # Head labels alone are not the full vocabulary -- the "update" head is refined by the
 # clause's trailing state word into "complete" or "reopen" at dispatch, so those two are
 # reachable actions that no head is named after. Both sources are folded in.
+#
+# "create_event" is not a verb head but an action type the LLM uses for calendar events.
 ACTION_NAMES: tuple[str, ...] = tuple(
     dict.fromkeys(
-        [action for action, _ in _ACTION_HEADS] + list(set(STATE_WORDS.values()))
+        [action for action, _ in _ACTION_HEADS] + list(set(STATE_WORDS.values())) + ["create_event"]
     )
 )
 Action = Literal[ACTION_NAMES]  # type: ignore[valid-type]

@@ -1,0 +1,29 @@
+id: next_week
+category: mutation_positive
+today: "2026-10-10"
+turn: "schedule meeting next week"
+seed_tasks: []
+expect:
+  outcome: captured
+  commits: 2
+  clarifies_about: none
+  required_field: null
+  must_not_do: []
+route_fixture:
+  intent: "mutation"
+  confidence: 0.8
+  instructions:
+    - action: "create"
+      quote: "schedule meeting next week"
+      title: "schedule meeting"
+      due_date: "2026-10-12"
+plan_fixture:
+  changes:
+    - kind: "create_task"
+      instruction_index: 0
+      target_ref: null
+      fields:
+        title: "schedule meeting"
+        due_date: "2026-10-12"
+      confidence: 0.9
+      rationale: "llm plan"

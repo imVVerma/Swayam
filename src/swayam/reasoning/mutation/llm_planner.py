@@ -50,6 +50,9 @@ PLANNER_PURPOSE = "mutation.plan"
 # dropped: an unrecognised key is either noise or an attempt to reach past the command.
 ALLOWED_FIELDS: dict[ChangeKind, frozenset[str]] = {
     ChangeKind.CREATE_TASK: frozenset({"title", "due_date"}),
+    ChangeKind.CREATE_EVENT: frozenset(
+        {"title", "starts_at", "ends_at", "kind", "location", "notes", "all_day"}
+    ),
     ChangeKind.SCHEDULE_TASK: frozenset({"due_date"}),
     ChangeKind.COMPLETE_TASK: frozenset(),
     ChangeKind.REOPEN_TASK: frozenset(),
@@ -63,7 +66,8 @@ REQUIRED_FIELDS = _REQUIRED_FIELDS
 """Re-exported from proposal.py, where it is authoritative."""
 
 # Kinds that act on an existing task and therefore need a resolvable reference.
-NEEDS_TARGET: frozenset[ChangeKind] = frozenset(ALLOWED_FIELDS) - {ChangeKind.CREATE_TASK}
+create_kinds = {ChangeKind.CREATE_TASK, ChangeKind.CREATE_EVENT}
+NEEDS_TARGET: frozenset[ChangeKind] = frozenset(ALLOWED_FIELDS) - create_kinds
 
 PLANNER_PROMPT = """\
 Turn each instruction into at most one proposed change.

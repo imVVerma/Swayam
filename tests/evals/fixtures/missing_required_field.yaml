@@ -1,0 +1,21 @@
+id: add_without_title
+category: missing_required_field
+today: "2026-09-29"
+turn: "add a task"
+seed_tasks: []
+expect:
+  outcome: clarified
+  commits: 0
+  clarifies_about: required_field
+  required_field: title
+  must_not_do: ["ask_which_task"]
+  known_gap: ""
+route_fixture:
+  intent: "mutation"
+  confidence: 0.8
+  instructions:
+    - action: "create"
+      quote: "add a task"
+      target_ref: null
+plan_fixture:
+  changes: []

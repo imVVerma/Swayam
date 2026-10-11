@@ -1,0 +1,35 @@
+id: create_event_birthday
+category: mutation_positive
+today: "2026-10-10"
+turn: "friend's birthday 16 october"
+seed_tasks: []
+expect:
+  outcome: applied
+  commits: 1
+  clarifies_about: none
+  required_field: null
+  must_not_do: []
+route_fixture:
+  intent: "mutation"
+  confidence: 0.8
+  instructions:
+    - action: "create_event"
+      quote: "friend's birthday 16 october"
+      title: "friend's birthday"
+      event_kind: "birthday"
+      starts_at: "2026-10-16T00:00:00"
+      ends_at: "2026-10-16T23:59:00"
+      all_day: true
+plan_fixture:
+  changes:
+    - kind: "create_event"
+      instruction_index: 0
+      target_ref: null
+      fields:
+        title: "friend's birthday"
+        starts_at: "2026-10-16T00:00:00"
+        ends_at: "2026-10-16T23:59:00"
+        kind: "birthday"
+        all_day: true
+      confidence: 0.9
+      rationale: "llm plan"

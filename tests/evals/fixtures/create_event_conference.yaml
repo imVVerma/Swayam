@@ -1,0 +1,35 @@
+id: create_event_conference
+category: mutation_positive
+today: "2026-10-10"
+turn: "conference 31 oct to 2 nov"
+seed_tasks: []
+expect:
+  outcome: applied
+  commits: 1
+  clarifies_about: none
+  required_field: null
+  must_not_do: []
+route_fixture:
+  intent: "mutation"
+  confidence: 0.8
+  instructions:
+    - action: "create_event"
+      quote: "conference 31 oct to 2 nov"
+      title: "conference"
+      event_kind: "conference"
+      starts_at: "2026-10-31T00:00:00"
+      ends_at: "2026-11-02T23:59:00"
+      all_day: true
+plan_fixture:
+  changes:
+    - kind: "create_event"
+      instruction_index: 0
+      target_ref: null
+      fields:
+        title: "conference"
+        starts_at: "2026-10-31T00:00:00"
+        ends_at: "2026-11-02T23:59:00"
+        kind: "conference"
+        all_day: true
+      confidence: 0.9
+      rationale: "llm plan"

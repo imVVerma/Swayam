@@ -1,0 +1,64 @@
+You are helping me reconstruct an old software project that I built some time ago.
+
+Do NOT modify any files.
+
+Your task is to investigate the repository and produce a detailed [PROJECT_Name]_ARCHAEOLOGY.md file.
+
+Please inspect:
+- README files
+- source code
+- package/configuration files
+- dependencies
+- database/schema files
+- API routes
+- frontend components
+- backend services
+- environment examples
+- scripts
+- comments
+- git history if available
+- Docker/deployment configuration if present
+
+I have forgotten why I created this project and what state it is currently in.
+
+Answer the following:
+
+1. What is this project?
+2. What problem was it intended to solve?
+3. What evidence in the code supports that interpretation?
+4. What are the main technologies used?
+5. What is the architecture?
+6. What are the major components?
+7. What is the data flow?
+8. What can the current implementation actually do?
+9. What appears unfinished?
+10. What appears broken?
+11. What appears to be experimental/prototype code?
+12. What external APIs/services does it depend on?
+13. What configuration or environment variables does it require?
+14. How would I run it locally?
+15. What would I see if it runs successfully?
+16. What are the most important files and what does each do?
+17. Is there evidence of the original motivation or design decisions?
+18. What technical concepts was I probably trying to learn?
+19. What would be required to turn this into a clean, presentable project?
+20. What would you recommend I do with it:
+   - finish
+   - rebuild
+   - extract an idea
+   - archive
+   - abandon
+
+Do not invent information. Clearly distinguish:
+- confirmed from code
+- strongly inferred
+- uncertain
+
+At the end, provide:
+
+A. A 5-sentence explanation I could give another person about this project.
+B. A suggested GitHub README structure.
+C. A list of the 5 most important things I should personally understand before claiming I built this project.
+D. A list of unanswered questions.
+
+Do not write or modify application code. Only create [PROJECT_Name]_ARCHAEOLOGY.md.

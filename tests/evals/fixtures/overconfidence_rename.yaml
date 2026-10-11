@@ -1,0 +1,23 @@
+id: overconfidence_rename
+category: overconfidence_trap
+today: "2026-10-10"
+turn: "rename the report to the deck"
+seed_tasks:
+  - {title: "report", status: "open"}
+  - {title: "deck", status: "open"}
+expect:
+  outcome: clarified
+  commits: 0
+  clarifies_about: low_confidence
+  required_field: null
+  must_not_do: ["mutate_any_task"]
+route_fixture:
+  intent: "mutation"
+  confidence: 0.3
+  instructions:
+    - action: "rename"
+      quote: "rename the report to the deck"
+      target_ref: "the report"
+      new_title: "the deck"
+plan_fixture:
+  changes: []

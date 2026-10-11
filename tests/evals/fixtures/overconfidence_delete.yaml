@@ -1,0 +1,21 @@
+id: overconfidence_delete
+category: overconfidence_trap
+today: "2026-10-10"
+turn: "delete the q3 report"
+seed_tasks:
+  - {title: "q3 report", status: "open"}
+expect:
+  outcome: clarified
+  commits: 0
+  clarifies_about: low_confidence
+  required_field: null
+  must_not_do: ["mutate_any_task"]
+route_fixture:
+  intent: "mutation"
+  confidence: 0.3
+  instructions:
+    - action: "archive"
+      quote: "delete the q3 report"
+      target_ref: "the q3 report"
+plan_fixture:
+  changes: []

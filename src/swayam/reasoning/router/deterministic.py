@@ -24,7 +24,12 @@ from collections.abc import Sequence
 from datetime import date
 from typing import Protocol, runtime_checkable
 
-from swayam.reasoning.router.dates import extract_date, strip_date_phrases
+from swayam.reasoning.router.dates import (
+    extract_date,
+    extract_time,
+    extract_time_range,
+    strip_date_phrases,
+)
 from swayam.reasoning.router.intent import Intent, IntentDecision
 
 # Admission gate, read from `_ACTION_HEADS` itself. This used to be a separate
@@ -215,6 +220,8 @@ def _looks_like_mutation(text: str) -> bool:
     """
     if _has_action_head(text) or CAPTURE_VERB.match(text):
         return True
+    if _detect_event_kind(text):
+        return True
     return any(w in text for w in STATE_WORDS)
 
 
@@ -311,10 +318,22 @@ def _route_clause(text: str, today: date) -> dict[str, object]:
     due = extract_date(text, today=today)
     slots["due_date"] = due.isoformat() if due else None
 
+    # Extract time information
+    time_val = extract_time(text)
+    if time_val:
+        slots["due_time"] = time_val.isoformat()
+
+    time_range = extract_time_range(text)
+    if time_range:
+        slots["start_time"] = time_range[0].isoformat()
+        slots["end_time"] = time_range[1].isoformat()
+
     action = _detect_action(text)
     slots["action"] = action
 
-    if action == "create" or (action is None and CAPTURE_VERB.match(text)):
+    is_capture = action is None and CAPTURE_VERB.match(text)
+    is_event = action is None and _detect_event_kind(text)
+    if action == "create" or is_capture or is_event:
         # "book train tickets due october 19" has no "add a task" wrapper to peel, so the
         # leading verb stays part of the title -- "book train tickets" is what the user
         # wants to see in a list.
@@ -323,6 +342,45 @@ def _route_clause(text: str, today: date) -> dict[str, object]:
         # ("add"). That is not something to act on, so do not claim confidence.
         if title and (title != text or action is None):
             slots["title"] = title
+
+        # Detect if this is an event (has time range, or explicit event keywords)
+        # A bare due date does not make it an event -- tasks have due dates too.
+        event_kind = _detect_event_kind(text)
+        if event_kind or time_range:
+            slots["event_kind"] = event_kind or "event"
+            # Use create_event action for events
+            slots["action"] = "create_event"
+            # Extract location if present
+            location = _extract_location(text)
+            if location:
+                slots["location"] = location
+            # Extract notes if present
+            notes = _extract_notes(text)
+            if notes:
+                slots["notes"] = notes
+            slots["is_event"] = True
+
+            # Build starts_at and ends_at from date + time information
+            due_date = slots.get("due_date")
+            start_time = slots.get("start_time")
+            end_time = slots.get("end_time")
+            due_time = slots.get("due_time")
+
+            if due_date and (start_time or due_time):
+                # Combine date and time for starts_at
+                if start_time:
+                    slots["starts_at"] = f"{due_date}T{start_time}"
+                elif due_time:
+                    slots["starts_at"] = f"{due_date}T{due_time}"
+            
+            if due_date and end_time:
+                slots["ends_at"] = f"{due_date}T{end_time}"
+            elif "starts_at" in slots and "ends_at" not in slots:
+                # Default to 1 hour duration if only start time given
+                from datetime import datetime, timedelta
+                start_dt = datetime.fromisoformat(str(slots["starts_at"]))
+                end_dt = start_dt + timedelta(hours=1)
+                slots["ends_at"] = end_dt.isoformat()
         return slots
 
     if action == "note":
@@ -404,3 +462,56 @@ def _split_blocked_by(text: str, *, today: date) -> tuple[str, str | None]:
     if len(parts) > 1 and not extract_date(parts[1], today=today):
         return parts[0], parts[1]
     return text, None
+
+
+# Event detection helpers
+
+EVENT_KINDS = (
+    "exam", "test", "midterm", "final",
+    "appointment", "meeting", "call",
+    "birthday", "anniversary",
+    "booking", "reservation", "ticket",
+    "conference", "workshop", "seminar",
+    "doctor", "dentist", "clinic",
+    "movie", "film", "show", "concert",
+    "flight", "train", "bus", "travel",
+)
+
+EVENT_KIND_PATTERNS = [re.compile(rf"\b{kind}\b") for kind in EVENT_KINDS]
+
+# Location prepositions that introduce a place
+_LOCATION_PREFIX = re.compile(
+    r"\b(?:in|at|room|building|hall|block|floor|office|clinic|hospital|venue|location)\b"
+)
+
+
+def _detect_event_kind(text: str) -> str | None:
+    """Detect the kind of event from the text."""
+    text_lower = text.lower()
+    for kind, pattern in zip(EVENT_KINDS, EVENT_KIND_PATTERNS, strict=False):
+        if pattern.search(text_lower):
+            return kind
+    return None
+
+
+def _extract_location(text: str) -> str | None:
+    """Extract location from text after prepositions like 'in', 'at', 'room'."""
+    # Look for patterns like "in room 1001", "at Bharti Block", etc.
+    matches = list(_LOCATION_PREFIX.finditer(text))
+    for match in matches:
+        # Get text after the preposition
+        after = text[match.end():].strip()
+        if after:
+            # Take up to the next comma, semicolon, or end
+            loc = after.split(",")[0].split(";")[0].strip()
+            if loc and len(loc) > 1:
+                return loc
+    return None
+
+
+def _extract_notes(text: str) -> str | None:
+    """Extract notes from text (text after 'note:', 'notes:', 'description:')."""
+    notes_match = re.search(r"\b(?:note|notes|description):\s*(.+)$", text, re.IGNORECASE)
+    if notes_match:
+        return notes_match.group(1).strip()
+    return None

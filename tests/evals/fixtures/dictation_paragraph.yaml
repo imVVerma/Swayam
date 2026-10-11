@@ -1,0 +1,29 @@
+id: dictation_paragraph
+category: mutation_positive
+today: "2026-10-10"
+turn: "computer network test tomorrow 10:30–11:30 in room 1001 Bharti Block; quiz at 5 tomorrow; assignment due Saturday 3 October 10pm IST; ship a conference video; conference 31 Oct–2 Nov; friend's birthday 16 October; book train tickets for 19 October and return for 23 October; an assignment due 9am that is already done"
+seed_tasks: []
+expect:
+  outcome: captured
+  commits: 1
+  clarifies_about: none
+  required_field: null
+  must_not_do: []
+  known_gap: "Multiple items in one sentence - only first captured by deterministic router"
+route_fixture:
+  intent: "mutation"
+  confidence: 0.8
+  instructions:
+    - action: "create"
+      quote: "computer network test tomorrow 10:30–11:30 in room 1001 Bharti Block"
+      title: "computer network test tomorrow 10:30–11:30 in room 1001 Bharti Block"
+      target_ref: null
+plan_fixture:
+  changes:
+    - kind: "create_task"
+      instruction_index: 0
+      target_ref: null
+      fields:
+        title: "computer network test tomorrow 10:30–11:30 in room 1001 Bharti Block"
+      confidence: 0.9
+      rationale: "llm plan"

@@ -30,7 +30,7 @@ from __future__ import annotations
 import re
 from collections.abc import Callable
 from dataclasses import dataclass
-from datetime import date, timedelta
+from datetime import date, time, timedelta
 
 WEEKDAYS = {
     "monday": 0,
@@ -60,6 +60,8 @@ MONTHS = {
 _DAY_ALT = "|".join(WEEKDAYS)
 _MONTH_ALT = "|".join(MONTHS)
 
+ORDINAL_SUFFIX = r"(?:st|nd|rd|th)?"
+
 
 def _safe_date(year: int, month: int, day: int) -> date | None:
     try:
@@ -72,6 +74,81 @@ def _days_in_month(year: int, month: int) -> int:
     if month == 12:
         return 31
     return (date(year, month + 1, 1) - timedelta(days=1)).day
+
+
+def _parse_time(text: str) -> time | None:
+    """Parse spoken time formats: '10 o'clock at night', '5 pm', '10:30', '10:30 am'."""
+    text = text.lower().strip()
+    
+    # Handle "o'clock" formats: "10 o'clock at night", "5 o'clock in the morning"
+    oclock_match = re.search(r"(\d{1,2})\s*o'?clock", text)
+    if oclock_match:
+        hour = int(oclock_match.group(1))
+        if ("night" in text or "evening" in text) and hour < 12:
+            hour += 12
+        elif "morning" in text and hour == 12:
+            hour = 0
+        return time(hour, 0)
+    
+    # Handle "HH:MM am/pm" and "H am/pm" formats
+    time_match = re.search(r"(\d{1,2})(?::(\d{2}))?\s*(am|pm)", text)
+    if time_match:
+        hour = int(time_match.group(1))
+        minute = int(time_match.group(2) or 0)
+        meridiem = time_match.group(3)
+        if meridiem == "pm" and hour < 12:
+            hour += 12
+        elif meridiem == "am" and hour == 12:
+            hour = 0
+        return time(hour, minute)
+    
+    # Handle 24-hour format "HH:MM"
+    time24_match = re.search(r"(\d{1,2}):(\d{2})", text)
+    if time24_match:
+        hour = int(time24_match.group(1))
+        minute = int(time24_match.group(2))
+        if 0 <= hour <= 23 and 0 <= minute <= 59:
+            return time(hour, minute)
+    
+    return None
+
+
+def extract_time(text: str) -> time | None:
+    """Extract a single time from text. Returns None if not found."""
+    return _parse_time(text)
+
+
+def extract_time_range(text: str) -> tuple[time, time] | None:
+    """Extract time range from text: '10:30 to 11:30', '10 to 11', '5-6 pm'."""
+    text = text.lower()
+    
+    # Pattern: "HH:MM to HH:MM" or "H to H" or "H-H"
+    patterns = [
+        r"(\d{1,2}):(\d{2})\s*(?:to|-)\s*(\d{1,2}):(\d{2})",
+        r"(\d{1,2})\s*(?:to|-)\s*(\d{1,2})\s*(am|pm)?",
+    ]
+    
+    for pattern in patterns:
+        match = re.search(pattern, text)
+        if match:
+            groups = match.groups()
+            if len(groups) == 4:  # HH:MM to HH:MM
+                start_h, start_m, end_h, end_m = groups
+                start = time(int(start_h), int(start_m))
+                end = time(int(end_h), int(end_m))
+                return (start, end)
+            elif len(groups) == 3:  # H to H am/pm
+                start_h, end_h, meridiem = groups
+                start_h = int(start_h)
+                end_h = int(end_h)
+                if meridiem == "pm":
+                    if start_h < 12:
+                        start_h += 12
+                    if end_h < 12:
+                        end_h += 12
+                return (time(start_h, 0), time(end_h, 0))
+    
+    return None
 
 
 # ---------------------------------------------------------------------- resolvers
@@ -134,6 +211,27 @@ def _month_day(match: re.Match[str], today: date) -> date | None:
     return resolved
 
 
+def _dd_mm_yyyy(match: re.Match[str], today: date) -> date | None:
+    """DD/MM/YYYY or DD-MM-YYYY format."""
+    day, month, year = int(match.group(1)), int(match.group(2)), int(match.group(3))
+    if not (1 <= day <= 31 and 1 <= month <= 12 and 1900 <= year <= 2100):
+        return None
+    return _safe_date(year, month, day)
+
+
+def _dd_mm(match: re.Match[str], today: date) -> date | None:
+    """DD/MM or DD-MM format (assumes current or next year)."""
+    day, month = int(match.group(1)), int(match.group(2))
+    if not (1 <= day <= 31 and 1 <= month <= 12):
+        return None
+    resolved = _safe_date(today.year, month, day)
+    if resolved is None:
+        return None
+    if resolved < today:
+        return _safe_date(today.year + 1, month, day)
+    return resolved
+
+
 def _day_of_month(match: re.Match[str], today: date) -> date | None:
     day = int(match.group(1) or match.group(2))
     if not 1 <= day <= 31:
@@ -147,6 +245,44 @@ def _day_of_month(match: re.Match[str], today: date) -> date | None:
         if month > 12:
             month, year = 1, year + 1
         resolved = _safe_date(year, month, day)
+    return resolved
+
+
+def _next_week(match: re.Match[str], today: date) -> date | None:
+    """'next week' - resolves to Monday of next week."""
+    return today + timedelta(days=7 - today.weekday())
+
+
+def _end_of_month(match: re.Match[str], today: date) -> date | None:
+    """'end of month' - resolves to last day of current month."""
+    last_day = _days_in_month(today.year, today.month)
+    resolved = date(today.year, today.month, last_day)
+    if resolved < today:
+        # If today is past the end of month (impossible), go to next month
+        next_month = today.month + 1
+        year = today.year
+        if next_month > 12:
+            next_month, year = 1, year + 1
+        last_day = _days_in_month(year, next_month)
+        resolved = date(year, next_month, last_day)
+    return resolved
+
+
+def _this_week(match: re.Match[str], today: date) -> date | None:
+    """'this week' - ambiguous, returns None (requires clarification)."""
+    return None
+
+
+def _ordinal_date(match: re.Match[str], today: date) -> date | None:
+    """'3rd of October', '1st of January'."""
+    day = int(match.group(1))
+    month_name = match.group(2)
+    month = MONTHS[month_name]
+    resolved = _safe_date(today.year, month, day)
+    if resolved is None:
+        return None
+    if resolved < today:
+        return _safe_date(today.year + 1, month, day)
     return resolved
 
 
@@ -193,12 +329,49 @@ RULES: tuple[DateRule, ...] = (
         True,
     ),
     DateRule(
+        "dd_mm_yyyy",
+        re.compile(r"\b(\d{1,2})[/-](\d{1,2})[/-](\d{4})\b"),
+        _dd_mm_yyyy,
+        True,
+    ),
+    DateRule(
+        "dd_mm",
+        re.compile(r"\b(\d{1,2})[/-](\d{1,2})\b"),
+        _dd_mm,
+        True,
+    ),
+    DateRule(
         "month_day",
         re.compile(
-            rf"\b(?:({_MONTH_ALT})\.? (\d{{1,2}})(?:st|nd|rd|th)?"
-            rf"|(\d{{1,2}})(?:st|nd|rd|th)? ({_MONTH_ALT})\b)"
+            rf"\b(?:({_MONTH_ALT})\.? (\d{{1,2}}){ORDINAL_SUFFIX}"
+            rf"|(\d{{1,2}}){ORDINAL_SUFFIX} ({_MONTH_ALT})\b)"
         ),
         _month_day,
+        True,
+    ),
+    DateRule(
+        "ordinal_date",
+        # "3rd of October", "1st of January"
+        re.compile(rf"\b(\d{{1,2}}){ORDINAL_SUFFIX}\s+of\s+({_MONTH_ALT})\b"),
+        _ordinal_date,
+        True,
+    ),
+    DateRule(
+        "next_week",
+        re.compile(r"\bnext week\b"),
+        _next_week,
+        True,
+    ),
+    DateRule(
+        "end_of_month",
+        re.compile(r"\bend of (?:the )?month\b"),
+        _end_of_month,
+        True,
+    ),
+    DateRule(
+        "this_week",
+        re.compile(r"\bthis week\b"),
+        _this_week,
         True,
     ),
     DateRule(
@@ -217,8 +390,8 @@ RULES: tuple[DateRule, ...] = (
 # window, not a day, and turning it into one is the kind of confident misread that costs
 # trust. These phrases are stripped from titles but never produce a date.
 UNRESOLVABLE_DATE_LANGUAGE: tuple[re.Pattern[str], ...] = (
-    re.compile(r"\b(?:this|next|last|coming) (?:week|month|fortnight|quarter|year)\b"),
-    re.compile(r"\b(?:end of|start of) (?:the )?(?:week|month|quarter|year)\b"),
+    re.compile(r"\b(?:this|last|coming) (?:week|month|fortnight|quarter|year)\b"),
+    re.compile(r"\b(?:start of) (?:the )?(?:week|month|quarter|year)\b"),
     re.compile(r"\bsometime\b\s*\w*"),
 )
 

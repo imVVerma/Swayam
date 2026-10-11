@@ -1,0 +1,31 @@
+id: time_parsing_10pm
+category: mutation_positive
+today: "2026-10-13"
+turn: "submit assignment by saturday 10pm"
+seed_tasks: []
+expect:
+  outcome: captured
+  commits: 2
+  clarifies_about: none
+  required_field: null
+  must_not_do: []
+route_fixture:
+  intent: "mutation"
+  confidence: 0.8
+  instructions:
+    - action: "create"
+      quote: "submit assignment by saturday 10pm"
+      title: "submit assignment"
+      due_date: "2026-10-17"
+      due_time: "22:00:00"
+plan_fixture:
+  changes:
+    - kind: "create_task"
+      instruction_index: 0
+      target_ref: null
+      fields:
+        title: "submit assignment"
+        due_date: "2026-10-17"
+        due_time: "22:00:00"
+      confidence: 0.9
+      rationale: "llm plan"

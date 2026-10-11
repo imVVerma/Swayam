@@ -94,6 +94,41 @@ def _propose(
         # with no title is nothing to act on.
         action = "create"
 
+    if action == "create_event":
+        # Create a calendar event
+        title = str(instruction.get("title") or "").strip()
+        if not title:
+            return None
+        
+        starts_at_raw = instruction.get("starts_at") or instruction.get("due_date")
+        ends_at_raw = instruction.get("ends_at")
+        
+        if not starts_at_raw:
+            return None  # Missing required field
+        
+        starts_at = str(starts_at_raw)
+        ends_at = str(ends_at_raw) if ends_at_raw else starts_at
+        
+        fields: dict[str, object] = {
+            "title": title,
+            "starts_at": starts_at,
+            "ends_at": ends_at,
+        }
+        
+        if instruction.get("event_kind"):
+            fields["kind"] = str(instruction["event_kind"])
+        if instruction.get("location"):
+            fields["location"] = str(instruction["location"])
+        if instruction.get("notes"):
+            fields["notes"] = str(instruction["notes"])
+        
+        return ProposedChange(
+            kind=ChangeKind.CREATE_EVENT,
+            fields=fields,
+            confidence=0.85,
+            rationale="explicit event creation with time range",
+        )
+
     if action == "create":
         # The title is the user's own words, only trimmed. ``clean_title`` is for
         # *matching* an existing reference; applying it here would silently strip
@@ -101,12 +136,15 @@ def _propose(
         title = str(instruction.get("title") or "").strip()
         if not title:
             return None
-        fields: dict[str, object] = {"title": title}
+        task_fields: dict[str, object] = {"title": title}
         if due is not None:
-            fields["due_date"] = due.isoformat()
+            task_fields["due_date"] = due.isoformat()
+        # Handle due_time for timed tasks
+        if instruction.get("due_time"):
+            task_fields["due_time"] = str(instruction["due_time"])
         return ProposedChange(
             kind=ChangeKind.CREATE_TASK,
-            fields=fields,
+            fields=task_fields,
             confidence=0.85,
             rationale="explicit capture verb with an extractable title",
         )

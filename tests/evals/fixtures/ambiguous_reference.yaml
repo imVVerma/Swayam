@@ -1,0 +1,23 @@
+id: ambiguous_reference_two_tasks
+category: ambiguous_reference
+today: "2026-09-29"
+turn: "send the report"
+seed_tasks:
+  - {title: "send the Q3 report", due: "2026-09-30"}
+  - {title: "send the Q4 report", due: "2026-10-07"}
+expect:
+  outcome: clarified
+  commits: 0
+  clarifies_about: target
+  required_field: null
+  must_not_do: ["ask_which_task"]
+  known_gap: ""
+route_fixture:
+  intent: "mutation"
+  confidence: 0.8
+  instructions:
+    - action: "create"
+      quote: "send the report"
+      target_ref: "the report"
+plan_fixture:
+  changes: []

@@ -271,6 +271,7 @@ class TestEveryKindIsReachable:
 
     SEQUENCE: tuple[tuple[ChangeKind, str, str], ...] = (
         (ChangeKind.CREATE_TASK, "add a task to send the q3 report", "task.created"),
+        (ChangeKind.CREATE_EVENT, "exam tomorrow 10:00 to 11:00", "event.created"),
         (ChangeKind.COMPLETE_TASK, "mark the q3 report done", "task.status_changed"),
         (ChangeKind.REOPEN_TASK, "reopen the q3 report", "task.status_changed"),
         (ChangeKind.RENAME_TASK, "rename the q3 report to the board deck",

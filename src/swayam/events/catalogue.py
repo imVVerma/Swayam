@@ -14,7 +14,7 @@ envelope, the registry and the store contract all tolerate them without migratio
 
 from __future__ import annotations
 
-from datetime import date, datetime
+from datetime import date, datetime, time
 from typing import Annotated
 from uuid import UUID
 
@@ -58,11 +58,14 @@ class TaskDueDateSet(BaseModel):
     in the timeline rather than being inferred from a prior state."""
 
     due_date: date
+    due_time: time | None = None
 
 
 class TaskDueDateMoved(BaseModel):
     from_date: date
     to_date: date
+    from_time: time | None = None
+    to_time: time | None = None
     reason: str | None = None
 
 
@@ -89,6 +92,19 @@ class TaskArchived(BaseModel):
     reason: str | None = None
 
 
+class TaskUndone(BaseModel):
+    """Compensating event that records an undo of the last operation.
+
+    The orchestrator writes this when the user invokes `undo`. It carries the
+    correlation_id of the turn being undone so the projection can reverse its
+    effect without mutating past events.
+    """
+
+    undone_correlation_id: UUID
+    undone_event_types: tuple[str, ...]
+    reason: str = "user requested undo"
+
+
 # ------------------------------------------------------------------------ project
 
 
@@ -109,12 +125,17 @@ class CalendarEventCreated(BaseModel):
     title: Title
     starts_at: datetime
     ends_at: datetime
-    kind: str = "event"
+    kind: str = "event"  # exam, appointment, birthday, booking, conference, etc.
+    location: str | None = None
+    notes: str | None = None
+    # For multi-day events, ends_at date can be different from starts_at date
+    all_day: bool = False
 
 
 class CalendarEventRescheduled(BaseModel):
     from_starts_at: datetime
     to_starts_at: datetime
+    to_ends_at: datetime | None = None
     reason: str | None = None
 
 
@@ -161,6 +182,7 @@ TASK_ESTIMATED = EventType("task.estimated", TaskEstimated)
 TASK_LINKED_TO_EVENT = EventType("task.linked_to_event", TaskLinkedToEvent)
 TASK_NOTE_ADDED = EventType("task.note_added", TaskNoteAdded)
 TASK_ARCHIVED = EventType("task.archived", TaskArchived)
+TASK_UNDONE = EventType("task.undone", TaskUndone)
 
 PROJECT_CREATED = EventType("project.created", ProjectCreated)
 PROJECT_CLOSED = EventType("project.closed", ProjectClosed)
@@ -186,6 +208,7 @@ TASK_EVENT_TYPES: tuple[EventType, ...] = (
     TASK_LINKED_TO_EVENT,
     TASK_NOTE_ADDED,
     TASK_ARCHIVED,
+    TASK_UNDONE,
 )
 
 PHASE1_EVENT_TYPES: tuple[EventType, ...] = (
